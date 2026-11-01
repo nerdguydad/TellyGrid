@@ -68,6 +68,7 @@
 
     <application
         android:allowBackup="true"
+        android:usesCleartextTraffic="true"
         android:appCategory="video"
         android:banner="@drawable/tv_banner"
         android:icon="@mipmap/ic_launcher"

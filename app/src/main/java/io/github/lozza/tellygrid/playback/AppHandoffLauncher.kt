@@ -12,6 +12,8 @@ import io.github.lozza.tellygrid.data.BbcIplayerEpisode
 import io.github.lozza.tellygrid.data.BbcIplayerProgrammeLink
 import io.github.lozza.tellygrid.data.ProviderRegistry
 import io.github.lozza.tellygrid.data.PrimeVideoProgrammeLink
+import io.github.lozza.tellygrid.data.StartTvContract
+import io.github.lozza.tellygrid.data.StartTvProgrammeLink
 import io.github.lozza.tellygrid.data.TvPublishedProgramme
 
 sealed interface LaunchResult {
@@ -101,6 +103,18 @@ class AppHandoffLauncher(private val context: Context) {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
                 if (tryStart(intent)) return LaunchResult.Opened("${provider.displayName} live channel")
+            }
+        }
+
+        // Start.ca Start TV (MediaFirst UC) — the catalog's channelUri carries the
+        // media id (LIVE$STARTCA-<num>-<slug> or LIVE$<num>). Tune via the
+        // search-suggestion extra `intent_extra_data_key` on MainActivity. Fires
+        // the explicit component launch; honoured at the web-ready gate.
+        if (provider.id == ProviderId.START_TV && StartTvContract.PACKAGE_NAME in packages) {
+            target.channelUri?.takeIf { it.startsWith("LIVE") }?.let { mediaId ->
+                if (tryStart(StartTvProgrammeLink.tuneIntentForChannel(mediaId).toIntent())) {
+                    return LaunchResult.Opened("${provider.displayName} channel")
+                }
             }
         }
 

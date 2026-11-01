@@ -12,7 +12,8 @@ enum class ProviderId {
     DISCOVERY_PLUS,
     HBO_MAX,
     PLUTO_TV,
-    OWNED_STREAM
+    OWNED_STREAM,
+    START_TV,
 }
 
 /** A stable, user-facing grouping. It is never derived from an external XMLTV name. */

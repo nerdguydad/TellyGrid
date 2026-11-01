@@ -70,5 +70,19 @@ object ProviderRegistry {
         discoveryUris = listOf("https://pluto.tv/"),
     )
 
-    val all = listOf(bbc, itvx, channel4, five, u, now, discoveryPlus, hboMax, pluto)
+    /**
+     * Start.ca Start TV (Ericsson MediaFirst UC) on Fire TV.
+     * Channel tune uses the platform's search-suggestion deep link: an
+     * `intent_extra_data_key` extra carrying `{"actionType":"tune","params":{"Id":...}}`
+     * sent to `com.ericsson.MediaFirstUC.tv.MainActivity`. See StartTvProgrammeLink.
+     */
+    val startTv = ProviderApp(
+        id = ProviderId.START_TV,
+        displayName = "Start TV",
+        packageCandidates = listOf(StartTvContract.PACKAGE_NAME),
+        discoveryTerms = listOf("start tv", "start.ca", "tangerine"),
+        discoveryUris = emptyList(),
+    )
+
+    val all = listOf(bbc, itvx, channel4, five, u, now, discoveryPlus, hboMax, pluto, startTv)
 }

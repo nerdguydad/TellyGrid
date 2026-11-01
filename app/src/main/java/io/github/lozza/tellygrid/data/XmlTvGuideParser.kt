@@ -74,7 +74,7 @@ class XmlTvGuideParser {
                                 episodeLabel = episodeLabel,
                                 contentUri = DiscoveryProgrammeLink.verifiedOrNull(channelId, contentUri)
                                     ?: BbcIplayerProgrammeLink.verifiedOrNull(contentUri.takeIf {
-                                        ChannelCatalog.byXmlTvId[channelId]?.provider?.id == ProviderId.BBC_IPLAYER
+                                        StartTvChannelCatalog.byXmlTvId[channelId]?.provider?.id == ProviderId.BBC_IPLAYER
                                     }),
                             ),
                         )
@@ -85,7 +85,7 @@ class XmlTvGuideParser {
             event = parser.next()
         }
 
-        return ChannelCatalog.channels.map { catalog ->
+        return StartTvChannelCatalog.channels.map { catalog ->
             val listedSchedule = programmes[catalog.xmlTvId]
                 ?.distinctBy { it.id }
                 ?.sortedBy { it.startsAt }

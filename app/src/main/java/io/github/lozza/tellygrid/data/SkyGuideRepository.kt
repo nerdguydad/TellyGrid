@@ -32,9 +32,15 @@ class SkyGuideRepository(private val context: Context) {
                 }
         } else null
         val base = if (BuildConfig.EPG_URL.isNotBlank()) {
-            cachedResult ?: runCatching { download(BuildConfig.EPG_URL) }.getOrNull()?.let { bytes ->
-                val channels = bytes.inputStream().use(parser::parse)
-                if (hasUsableSkyListings(channels)) {
+            cachedResult ?: runCatching { download(BuildConfig.EPG_URL) }.also {
+                android.util.Log.i("StartTvGuide", "download url=${BuildConfig.EPG_URL} ok=${it.isSuccess} err=${it.exceptionOrNull()?.message}")
+            }.getOrNull()?.let { bytes ->
+                val channels = runCatching { bytes.inputStream().use(parser::parse) }.also {
+                    android.util.Log.i("StartTvGuide", "parse bytes=${bytes.size} ok=${it.isSuccess} err=${it.exceptionOrNull()?.let{e->"${e.javaClass.simpleName}:${e.message}"}}")
+                }.getOrNull() ?: return@let null
+                val usable = hasUsableSkyListings(channels)
+                android.util.Log.i("StartTvGuide", "feed parsed channels=${channels.size} usable=$usable withListings=${channels.count{c->c.programmes.any{!it.id.endsWith("-listings-unavailable")}}}")
+                if (usable) {
                     cacheFile.writeBytes(bytes)
                     GuideLoadResult(
                         mergeGuideSchedules(channels, bundled, demoFallback),
@@ -112,11 +118,14 @@ internal fun hasUsableListings(channels: List<GuideChannel>): Boolean =
  * not make a mostly-empty Sky feed look healthy.
  */
 internal fun hasUsableSkyListings(channels: List<GuideChannel>): Boolean {
-    val coreIds = setOf("bbc-one", "bbc-two", "itv1", "channel-4", "five")
-    val core = channels.filter { it.id in coreIds }
-    return core.size >= 3 && core.count { channel ->
+    // Start.ca build: the feed is usable when a meaningful share of catalog
+    // channels carry real listings (not the listings-unavailable placeholder).
+    // Replaces the upstream BBC/ITV core-id check, which can never match a
+    // non-UK catalog.
+    val withListings = channels.count { channel ->
         channel.programmes.any { !it.id.endsWith("-listings-unavailable") }
-    } >= 3
+    }
+    return channels.isNotEmpty() && withListings >= 3
 }
 
 /** Keeps a fresh hosted feed authoritative while filling newly-added rows from the APK. */
