@@ -118,6 +118,7 @@ class XmlTvGuideParser {
                     provider = catalog.provider,
                     channelId = catalog.id,
                     channelUri = catalog.channelUri,
+                    channelNumber = catalog.number,
                     terrestrialLcn = catalog.terrestrialLcn,
                 ),
                 programmes = schedule,

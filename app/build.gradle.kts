@@ -10,7 +10,7 @@ android {
 
     defaultConfig {
         applicationId = "io.github.lozza.tellygrid"
-        minSdk = 26
+        minSdk = 22
         targetSdk = 35
         versionCode = 10
         versionName = "0.8.2-alpha.8.2"
@@ -20,6 +20,10 @@ android {
             .orElse("https://lozza.github.io/TellyGrid/guide.xml")
             .get()
         buildConfigField("String", "EPG_URL", "\"${epgUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+        val startTvBridgeUrl = providers.gradleProperty("STARTTV_BRIDGE_URL")
+            .orElse("http://192.168.86.54:8401")
+            .get()
+        buildConfigField("String", "STARTTV_BRIDGE_URL", "\"${startTvBridgeUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
     }
 
     buildFeatures {
@@ -28,6 +32,7 @@ android {
     }
 
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -63,6 +68,7 @@ dependencies {
     implementation("androidx.media3:media3-ui:1.6.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
     testImplementation("junit:junit:4.13.2")
     // Real org.json for JVM unit tests; android.jar only ships stubs.
     testImplementation("org.json:json:20240303")

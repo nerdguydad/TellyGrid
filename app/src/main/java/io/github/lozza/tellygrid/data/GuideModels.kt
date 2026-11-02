@@ -87,6 +87,8 @@ sealed interface PlaybackTarget {
         /** Stable TellyGrid catalog id used by opt-in provider navigation helpers. */
         val channelId: String,
         val channelUri: String? = null,
+        /** Provider logical channel number, when the handoff can tune by digits. */
+        val channelNumber: Int? = null,
         /** Exact provider-owned programme link, when the guide source supplies one. */
         val contentUri: String? = null,
         /** Verified provider intent for a specific programme, when available. */

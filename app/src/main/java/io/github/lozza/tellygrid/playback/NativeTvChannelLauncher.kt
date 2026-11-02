@@ -8,6 +8,7 @@ import android.media.tv.TvContract
 import android.media.tv.TvInputInfo
 import android.media.tv.TvInputManager
 import android.net.Uri
+import androidx.core.content.ContextCompat
 
 data class NativeTvChannel(
     val lcn: Int,
@@ -56,7 +57,7 @@ class NativeTvChannelLauncher(private val context: Context) {
     }
 
     private fun findTunerInputId(): String? {
-        val manager = context.getSystemService(TvInputManager::class.java) ?: return null
+        val manager = ContextCompat.getSystemService(context, TvInputManager::class.java) ?: return null
         return manager.tvInputList
             .filter { it.type == TvInputInfo.TYPE_TUNER }
             .sortedByDescending { it.id.contains("TunerInputService/HW0", ignoreCase = true) }

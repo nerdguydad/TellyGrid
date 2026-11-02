@@ -99,7 +99,9 @@ class MainActivity : ComponentActivity() {
             var publishedRecommendations by remember { mutableStateOf(TvPublishedRecommendations()) }
             var bbcIplayerEpisodes by remember { mutableStateOf(emptyList<BbcIplayerEpisode>()) }
             var tvListingsAllowed by remember {
-                mutableStateOf(checkSelfPermission(TV_LISTINGS_PERMISSION) == PackageManager.PERMISSION_GRANTED)
+                mutableStateOf(
+                    ContextCompat.checkSelfPermission(this@MainActivity, TV_LISTINGS_PERMISSION) == PackageManager.PERMISSION_GRANTED,
+                )
             }
             val tvListingsPermissionLauncher = rememberLauncherForActivityResult(
                 ActivityResultContracts.RequestPermission(),

@@ -26,17 +26,17 @@ import kotlinx.coroutines.launch
  * window, so Android 12+ never needs the special exact-alarm permission.
  */
 class ReminderScheduler(private val context: Context) {
-    private val alarms = context.getSystemService(AlarmManager::class.java)
+    private val alarms = ContextCompat.getSystemService(context, AlarmManager::class.java)
 
     fun schedule(reminder: GuideReminder, notificationsAllowed: Boolean) {
         if (!notificationsAllowed || reminder.startsAtEpochMillis <= System.currentTimeMillis()) return
         val start = reminder.startsAtEpochMillis
-        alarms.setWindow(AlarmManager.RTC_WAKEUP, start, REMINDER_WINDOW_MILLIS, pendingIntent(reminder))
+        alarms?.setWindow(AlarmManager.RTC_WAKEUP, start, REMINDER_WINDOW_MILLIS, pendingIntent(reminder))
     }
 
     fun cancel(reminder: GuideReminder) {
         pendingIntent(reminder).also { intent ->
-            alarms.cancel(intent)
+            alarms?.cancel(intent)
             intent.cancel()
         }
     }
@@ -76,12 +76,14 @@ class ReminderScheduler(private val context: Context) {
 
         internal fun showNotification(context: Context, channel: String, title: String) {
             if (!notificationsAllowed(context)) return
-            val manager = context.getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "Programme reminders", NotificationManager.IMPORTANCE_DEFAULT).apply {
-                    description = "Alerts for programmes saved in TellyGrid"
-                },
-            )
+            val manager = ContextCompat.getSystemService(context, NotificationManager::class.java) ?: return
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                manager.createNotificationChannel(
+                    NotificationChannel(CHANNEL_ID, "Programme reminders", NotificationManager.IMPORTANCE_DEFAULT).apply {
+                        description = "Alerts for programmes saved in TellyGrid"
+                    },
+                )
+            }
             val openApp = PendingIntent.getActivity(
                 context,
                 0,

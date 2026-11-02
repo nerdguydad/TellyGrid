@@ -5,6 +5,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import io.github.lozza.tellygrid.BuildConfig
 import io.github.lozza.tellygrid.data.PlaybackTarget
 import io.github.lozza.tellygrid.data.ProviderProgrammeIntent
 import io.github.lozza.tellygrid.data.ProviderId
@@ -12,6 +13,7 @@ import io.github.lozza.tellygrid.data.BbcIplayerEpisode
 import io.github.lozza.tellygrid.data.BbcIplayerProgrammeLink
 import io.github.lozza.tellygrid.data.ProviderRegistry
 import io.github.lozza.tellygrid.data.PrimeVideoProgrammeLink
+import io.github.lozza.tellygrid.data.StartTvBridge
 import io.github.lozza.tellygrid.data.StartTvContract
 import io.github.lozza.tellygrid.data.StartTvProgrammeLink
 import io.github.lozza.tellygrid.data.TvPublishedProgramme
@@ -106,11 +108,22 @@ class AppHandoffLauncher(private val context: Context) {
             }
         }
 
-        // Start.ca Start TV (MediaFirst UC) — the catalog's channelUri carries the
-        // media id (LIVE$STARTCA-<num>-<slug> or LIVE$<num>). Tune via the
-        // search-suggestion extra `intent_extra_data_key` on MainActivity. Fires
-        // the explicit component launch; honoured at the web-ready gate.
+        // Start.ca Start TV (MediaFirst UC) — two complementary tune paths:
+        //
+        //  1. The remote-adb zap bridge (preferred for a warm instance). It drives
+        //     `input keyevent` digits + the profile gate on the stick over the
+        //     home-automation host's authorized adb connection, so a warm, playing
+        //     Start TV re-tunes without a restart. Posted asynchronously; the
+        //     bridge picks the stick from our source IP.
+        //  2. The `intent_extra_data_key` deep-link, which tunes on a COLD start
+        //     at the web-ready gate (warm onNewIntent ignores it). Always fired
+        //     as the bring-forward launch and as the fallback when the bridge is
+        //     unreachable.
         if (provider.id == ProviderId.START_TV && StartTvContract.PACKAGE_NAME in packages) {
+            android.util.Log.i("StartTvBridge", "launch start.tv channelNumber=${target.channelNumber} uri=${target.channelUri} bridge=${BuildConfig.STARTTV_BRIDGE_URL}")
+            target.channelNumber?.let { channelNumber ->
+                StartTvBridge.zap(BuildConfig.STARTTV_BRIDGE_URL, channelNumber)
+            }
             target.channelUri?.takeIf { it.startsWith("LIVE") }?.let { mediaId ->
                 if (tryStart(StartTvProgrammeLink.tuneIntentForChannel(mediaId).toIntent())) {
                     return LaunchResult.Opened("${provider.displayName} channel")
