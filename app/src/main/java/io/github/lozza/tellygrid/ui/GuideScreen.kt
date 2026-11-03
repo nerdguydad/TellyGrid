@@ -198,10 +198,17 @@ fun GuideScreen(
         focusGeneration++
     }
 
-    LaunchedEffect(channels.isNotEmpty(), focusGeneration) {
+    LaunchedEffect(channels, focusGeneration) {
         if (channels.isNotEmpty()) {
-            // Some TV launchers grant window focus noticeably later than phones.
-            delay(if (initialFocusRequested) 16 else 450)
+            // Some TV launchers grant window focus noticeably later than
+            // phones, but the db feed now paints instantly — any long delay
+            // leaves the header buttons holding focus on startup. Keep it
+            // short; the requestFocus itself is retry-guarded.
+            // Keyed on `channels` (not just isNotEmpty): the cached db paints
+            // instantly, then the live feed swaps the channel list — without
+            // re-requesting, focus stays on whatever held it when the rows
+            // were torn down (a header button), i.e. cursor stuck at the top.
+            delay(if (initialFocusRequested) 16 else 150)
             runCatching { gridFocus.requestFocus() }
             initialFocusRequested = true
         }
@@ -257,7 +264,7 @@ fun GuideScreen(
             dates = availableDates,
             selectedDate = windowStart.atZone(zone).toLocalDate(),
             today = now.atZone(zone).toLocalDate(),
-            gridFocus = gridFocus,
+            onMoveDown = { focusGeneration++ },
             onDateSelected = { date ->
                 if (date == now.atZone(zone).toLocalDate()) jumpToNow() else jumpToDate(date)
             },
@@ -266,15 +273,30 @@ fun GuideScreen(
         TimelineHeader(windowStart = windowStart, now = now)
         Spacer(Modifier.height(4.dp))
         if (channels.isEmpty()) {
+            val filterActive = settings.filter != GuideFilter.ALL ||
+                settings.providerFilter != null
             Column(Modifier.padding(24.dp)) {
-                Text(
-                    text = "NO CHANNELS MATCH THIS FILTER",
-                    color = Muted,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-                Spacer(Modifier.height(12.dp))
-                HeaderButton(text = "CLEAR FILTER", onClick = onClearFilters)
+                if (filterActive) {
+                    // A filter/search is hiding everything that did load.
+                    Text(
+                        text = "NO CHANNELS MATCH THIS FILTER",
+                        color = Muted,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    HeaderButton(text = "CLEAR FILTER", onClick = onClearFilters)
+                } else {
+                    // No filter set and still no channels: the feed hasn't
+                    // arrived yet. Show a quiet loading row rather than a
+                    // misleading empty-filter message while the db loads.
+                    Text(
+                        text = "LOADING LISTINGS\u2026",
+                        color = Muted,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
             }
         } else {
             LazyColumn(
@@ -316,7 +338,7 @@ private fun GuideDateStrip(
     dates: List<LocalDate>,
     selectedDate: LocalDate,
     today: LocalDate,
-    gridFocus: FocusRequester,
+    onMoveDown: () -> Unit,
     onDateSelected: (LocalDate) -> Unit,
 ) {
     if (dates.size <= 1) return
@@ -356,7 +378,24 @@ private fun GuideDateStrip(
                         RoundedCornerShape(4.dp),
                     )
                     .then(if (selected) Modifier.focusRequester(selectedFocus) else Modifier)
-                    .focusProperties { down = gridFocus }
+                    // DOWN must NOT focus-search `gridFocus`: that requester is
+                    // conditionally attached to a programme tile, and during a
+                    // recomposition race (selection flip, row scroll) it is
+                    // detached — focusSearch then throws
+                    // "FocusRequester is not initialized" and kills the app.
+                    // Cancel the native search and route through the guarded
+                    // LaunchedEffect requestFocus path instead.
+                    .focusProperties { down = FocusRequester.Cancel }
+                    .onPreviewKeyEvent { event ->
+                        if (event.type == KeyEventType.KeyUp &&
+                            event.key == androidx.compose.ui.input.key.Key.DirectionDown
+                        ) {
+                            onMoveDown()
+                            true
+                        } else {
+                            false
+                        }
+                    }
                     .onFocusChanged { focused = it.isFocused }
                     .clickable { onDateSelected(date) }
                     .focusable()

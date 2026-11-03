@@ -24,7 +24,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import io.github.lozza.tellygrid.update.AppUpdater
-import io.github.lozza.tellygrid.data.SampleGuideRepository
+import io.github.lozza.tellygrid.data.GuideChannel
 import io.github.lozza.tellygrid.data.SkyGuideRepository
 import io.github.lozza.tellygrid.data.ProviderRegistry
 import io.github.lozza.tellygrid.data.GuideViewModel
@@ -63,7 +63,6 @@ class MainActivity : ComponentActivity() {
         val launcher = AppHandoffLauncher(this)
         val nativeTv = NativeTvChannelLauncher(this)
         val discovery = TvAppDiscovery(this)
-        val sampleChannels = SampleGuideRepository().channels()
 
         homeOverrideEnabled.value = HomeOverrideAccessibilityService.isEnabled(this)
         homeOverrideSkipped.value = setupPrefs().getBoolean(KEY_SETUP_SKIPPED, false)
@@ -94,7 +93,13 @@ class MainActivity : ComponentActivity() {
             ) {
                 notificationsAllowed = ReminderScheduler.notificationsAllowed(this@MainActivity)
             }
-            var channels by remember { mutableStateOf(sampleChannels) }
+            // Start empty so the grid waits for the real feed (cached db or
+            // live) instead of painting the UK demo channels first. Seeding
+            // with sampleChannels caused both the UK-listings flash on launch
+            // and the focus bug: gridFocus bound to a demo row that was torn
+            // down when the real catalog arrived, so the cursor landed on a
+            // header button at the top instead of the grid.
+            var channels by remember { mutableStateOf(emptyList<GuideChannel>()) }
             var guideStatus by remember { mutableStateOf("Loading Sky listings…") }
             var publishedRecommendations by remember { mutableStateOf(TvPublishedRecommendations()) }
             var bbcIplayerEpisodes by remember { mutableStateOf(emptyList<BbcIplayerEpisode>()) }
@@ -118,6 +123,18 @@ class MainActivity : ComponentActivity() {
             val selections = guideSettings.providerSelections
 
             LaunchedEffect(Unit) {
+                // Instant paint: a previously-downloaded sqlite feed renders
+                // the channel grid immediately, before the network refresh
+                // below completes. Grid focus follows automatically once
+                // channels is non-empty.
+                runCatching {
+                    withContext(Dispatchers.IO) {
+                        SkyGuideRepository(this@MainActivity).loadCachedDbChannels()
+                    }
+                }.getOrNull()?.let { cached ->
+                    channels = cached
+                    guideStatus = "Saved listings (db) — refreshing"
+                }
                 runCatching {
                     withContext(Dispatchers.IO) { SkyGuideRepository(this@MainActivity).load() }
                 }.onSuccess { result ->

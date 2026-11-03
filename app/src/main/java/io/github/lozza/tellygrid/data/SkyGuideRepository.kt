@@ -13,6 +13,7 @@ data class GuideLoadResult(
 
 class SkyGuideRepository(private val context: Context) {
     private val parser = XmlTvGuideParser()
+    private val sqliteGuide = SqliteGuideRepository(context)
     private val cacheFile = File(context.filesDir, "sky-guide.xml")
     private val demoFallback by lazy { SampleGuideRepository().channels() }
     private val plutoGuide = PlutoGuideRepository(context)
@@ -31,7 +32,38 @@ class SkyGuideRepository(private val context: Context) {
                     )
                 }
         } else null
-        val base = if (BuildConfig.EPG_URL.isNotBlank()) {
+        val isDbFeed = BuildConfig.EPG_URL.substringBefore('?').endsWith(".db", ignoreCase = true)
+        // Fresh-enough cached db (same 30-min window as the xml path): serve
+        // straight from disk. Stale cache still gets painted instantly by
+        // loadCachedDbChannels() while this download runs.
+        val cachedDbChannels = if (isDbFeed) sqliteGuide.loadFromCacheFresh() else null
+        // Live feed attempt (sqlite or xmltv, chosen by URL suffix). A null
+        // result falls through to the cache->bundled->demo chain below.
+        val liveFeed: GuideLoadResult? = if (BuildConfig.EPG_URL.isBlank()) null
+        else if (isDbFeed) {
+            // SQLite feed: indexed per-channel queries, no full-doc parse.
+            // Fresh cache renders without a network hit; stale cache falls
+            // through to the download while early paint covers the wait.
+            (cachedDbChannels?.let { channels ->
+                if (hasUsableSkyListings(channels)) {
+                    GuideLoadResult(
+                        mergeGuideSchedules(channels, bundled, demoFallback),
+                        "Saved listings (db)",
+                    )
+                } else {
+                    null
+                }
+            }) ?: runCatching { sqliteGuide.load(BuildConfig.EPG_URL) }.also {
+                android.util.Log.i("StartTvGuide", "db-feed load url=${BuildConfig.EPG_URL} ok=${it.isSuccess} err=${it.exceptionOrNull()?.let{e->"${e.javaClass.simpleName}:${e.message}"}}")
+            }.getOrNull()?.let { channels ->
+                val usable = hasUsableSkyListings(channels)
+                android.util.Log.i("StartTvGuide", "db-feed channels=${channels.size} usable=$usable")
+                if (usable) GuideLoadResult(
+                    mergeGuideSchedules(channels, bundled, demoFallback),
+                    "Live listings (db)",
+                ) else null
+            }
+        } else {
             cachedResult ?: runCatching { download(BuildConfig.EPG_URL) }.also {
                 android.util.Log.i("StartTvGuide", "download url=${BuildConfig.EPG_URL} ok=${it.isSuccess} err=${it.exceptionOrNull()?.message}")
             }.getOrNull()?.let { bytes ->
@@ -50,9 +82,8 @@ class SkyGuideRepository(private val context: Context) {
                     null
                 }
             }
-        } else {
-            null
-        } ?: if (cacheFile.exists()) {
+        }
+        val base: GuideLoadResult = liveFeed ?: if (cacheFile.exists()) {
             runCatching { cacheFile.inputStream().use(parser::parse) }.getOrNull()?.let { channels ->
                 if (hasUsableSkyListings(channels)) {
                     GuideLoadResult(
@@ -89,6 +120,16 @@ class SkyGuideRepository(private val context: Context) {
                 base.status
             },
         )
+    }
+
+    /**
+     * Instant paint for the db feed: channels from the on-disk sqlite copy,
+     * before any network work. Safe to call on a background thread; returns
+     * null when no cached db exists yet.
+     */
+    fun loadCachedDbChannels(): List<GuideChannel>? {
+        if (!BuildConfig.EPG_URL.substringBefore('?').endsWith(".db", ignoreCase = true)) return null
+        return sqliteGuide.loadFromCache()?.takeIf(::hasUsableSkyListings)
     }
 
     private fun download(feedUrl: String): ByteArray {

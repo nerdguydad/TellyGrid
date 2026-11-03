@@ -74,7 +74,7 @@ object StartTvChannelCatalog {
         channel("komodt", 189, "ABC Seattle", "LIVE\$STARTCA-38097-ABC-W", "19629", GuideCategory.ENTERTAINMENT),
         channel("kirodt", 190, "CBS Seattle", "LIVE\$STARTCA-38100-CBS-W", "20290", GuideCategory.ENTERTAINMENT),
         channel("kcpqdt", 191, "FOX Tacoma", "LIVE\$STARTCA-38102-FOX-W", "21254", GuideCategory.ENTERTAINMENT),
-        channel("kcpqdt", 192, "FOX Tacoma", "LIVE\$STARTCA-38102-FOX-W", "21254", GuideCategory.ENTERTAINMENT),
+        channel("kcpqdt2", 192, "FOX Tacoma", "LIVE\$STARTCA-38102-FOX-W", "21254", GuideCategory.ENTERTAINMENT),
         channel("artschd", 201, "A&E Canada", "LIVE\$STARTCA-20829-AEHD", "55097", GuideCategory.ENTERTAINMENT),
         channel("tlchdbo", 202, "TLC Canada", "LIVE\$STARTCA-24423-TLCH", "60645", GuideCategory.ENTERTAINMENT),
         channel("flavhd", 204, "Flavour Network", "LIVE\$STARTCA-27710-FOODH", "73467", GuideCategory.ENTERTAINMENT),

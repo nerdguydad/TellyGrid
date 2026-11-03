@@ -98,7 +98,9 @@ fun UnifiedGuideApp(
     var setupOpenedFromHome by remember { mutableStateOf(false) }
     var showingFilter by remember { mutableStateOf(false) }
     var showingSearch by remember { mutableStateOf(false) }
-    var showingHome by rememberSaveable { mutableStateOf(true) }
+    // Open straight on the schedule grid; the launcher shelf is a BACK press
+    // away, matching how a TV guide app is expected to start.
+    var showingHome by rememberSaveable { mutableStateOf(false) }
     var showingApps by rememberSaveable { mutableStateOf(false) }
     var showingFavourites by rememberSaveable { mutableStateOf(false) }
     // Details opened from Favourites (a show that isn't on yet) go back there, not to the guide.

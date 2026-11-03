@@ -43,10 +43,10 @@ class XmlTvGuideParser {
                     "title" -> if (activeChannel != null) title = parser.nextText().trim()
                     "desc" -> if (activeChannel != null) description = parser.nextText().trim()
                     "icon" -> if (activeChannel != null && imageUri == null) {
-                        imageUri = parser.getAttributeValue(null, "src")?.trim()?.takeIf { it.startsWith("https://") }
+                        imageUri = parser.getAttributeValue(null, "src")?.trim()?.takeIf { it.startsWith("http") }
                     }
                     "image" -> if (activeChannel != null && imageUri == null) {
-                        imageUri = parser.nextText().trim().takeIf { it.startsWith("https://") }
+                        imageUri = parser.nextText().trim().takeIf { it.startsWith("http") }
                     }
                     "episode-num" -> if (activeChannel != null) {
                         val system = parser.getAttributeValue(null, "system")
@@ -85,45 +85,7 @@ class XmlTvGuideParser {
             event = parser.next()
         }
 
-        return StartTvChannelCatalog.channels.map { catalog ->
-            val listedSchedule = programmes[catalog.xmlTvId]
-                ?.distinctBy { it.id }
-                ?.sortedBy { it.startsAt }
-                // Keep enough of the feed to cover the complete seven-day
-                // date strip. Short EPG slices made later dates look empty
-                // even though the provider had listings for them.
-                ?.take(96)
-                .orEmpty()
-            val schedule = listedSchedule.ifEmpty {
-                listOf(
-                    Programme(
-                        id = "${catalog.xmlTvId}-listings-unavailable",
-                        title = "Listings unavailable",
-                        synopsis = "This channel is available through ${catalog.providerLabel}.",
-                        startsAt = now,
-                        endsAt = now.plusSeconds(24 * 60 * 60),
-                    ),
-                )
-            }
-
-            GuideChannel(
-                id = catalog.id,
-                number = catalog.number,
-                name = catalog.displayName,
-                providerLabel = catalog.providerLabel,
-                accentArgb = catalog.accentArgb,
-                logoUri = catalog.logoUri,
-                category = catalog.category,
-                playback = PlaybackTarget.ProviderHandoff(
-                    provider = catalog.provider,
-                    channelId = catalog.id,
-                    channelUri = catalog.channelUri,
-                    channelNumber = catalog.number,
-                    terrestrialLcn = catalog.terrestrialLcn,
-                ),
-                programmes = schedule,
-            )
-        }
+        return assembleGuideChannels(programmes, now)
     }
 
     private fun parseTime(value: String?): Instant? {
@@ -133,4 +95,58 @@ class XmlTvGuideParser {
             OffsetDateTime.parse("${match.groupValues[1]} ${match.groupValues[2]}", xmlTvTime).toInstant()
         }.getOrNull()
     }
+}
+
+/**
+ * Shared catalog->GuideChannel assembly used by both the XMLTV pull-parser
+ * and the SQLite feed reader. Keys of [programmesByXmlTvId] are Gracenote
+ * stationIDs matching `StartTvChannelCatalog.xmlTvId`.
+ */
+internal fun assembleGuideChannels(
+    programmesByXmlTvId: Map<String, List<Programme>>,
+    now: Instant,
+): List<GuideChannel> = StartTvChannelCatalog.channels
+    // LazyColumn keys rows on channel.id — a duplicated catalog id crashes
+    // the whole guide ("Key was already used"). Drop later dupes rather
+    // than take the app down; the id collision still shows in the log
+    // during dev.
+    .distinctBy { it.id }
+    .map { catalog ->
+    val listedSchedule = programmesByXmlTvId[catalog.xmlTvId]
+        ?.distinctBy { it.id }
+        ?.sortedBy { it.startsAt }
+        // Keep enough of the feed to cover the complete seven-day
+        // date strip. Short EPG slices made later dates look empty
+        // even though the provider had listings for them.
+        ?.take(96)
+        .orEmpty()
+    val schedule = listedSchedule.ifEmpty {
+        listOf(
+            Programme(
+                id = "${catalog.xmlTvId}-listings-unavailable",
+                title = "Listings unavailable",
+                synopsis = "This channel is available through ${catalog.providerLabel}.",
+                startsAt = now,
+                endsAt = now.plusSeconds(24 * 60 * 60),
+            ),
+        )
+    }
+
+    GuideChannel(
+        id = catalog.id,
+        number = catalog.number,
+        name = catalog.displayName,
+        providerLabel = catalog.providerLabel,
+        accentArgb = catalog.accentArgb,
+        logoUri = catalog.logoUri,
+        category = catalog.category,
+        playback = PlaybackTarget.ProviderHandoff(
+            provider = catalog.provider,
+            channelId = catalog.id,
+            channelUri = catalog.channelUri,
+            channelNumber = catalog.number,
+            terrestrialLcn = catalog.terrestrialLcn,
+        ),
+        programmes = schedule,
+    )
 }
